@@ -1,0 +1,111 @@
+#!/bin/sh
+# vim: set expandtab tabstop=4 shiftwidth=4 foldmethod=marker:
+#
+# Getit, simplified, yet powerful download manager
+#
+#   Author: Armen Baghumian <armen@OpenSourceClub.org>
+#   Version: 0.1
+#   License: There is no license, then you are free to do WHAT EVER YOU WANT with
+#            this script
+#
+
+CONFIG="${HOME}/.getitrc"
+PIDS_FILE="/tmp/getit.pids"
+LOG_FILES_PREFIX="/tmp/getit.log"
+
+# Default configs
+DOWNLOAD_DIR="${HOME}/downloads"
+QUEUE="${DOWNLOAD_DIR}/queue.txt"
+LIMIT_RATE=0
+
+# Read getitrc file if it is present
+[ -r $CONFIG ] && . $CONFIG
+
+# Create download directory if it is not exists
+if [ "x`ls ${DOWNLOAD_DIR} 2>/dev/null`" == "x" ] ; then
+    mkdir -p $DOWNLOAD_DIR
+
+    # it seems this first attempt to run so create queue file too
+    if [ "x`ls ${QUEUE} 2>/dev/null`" == "x" ] ; then
+        touch ${QUEUE}
+    fi
+fi
+
+# Cleanup function
+function clean_up {
+
+    if [ -f $PIDS_FILE ] ; then
+
+        cat $PIDS_FILE | while read pid;
+        do
+            if [ $pid ] ; then
+                kill $pid
+            fi
+        done
+    fi
+
+    # Remove log files and pids file
+    rm -rf $PIDS_FILE
+    rm -rf $LOG_FILES_PREFIX.*
+}
+
+function terminate {
+    clean_up
+    kill $SLAVE
+    exit
+}
+
+# Do the cleanup when one of SIGHUP, SIGINT, SIGTERM signals is received
+trap terminate SIGHUP SIGINT SIGTERM
+
+while (true);
+do
+    if [ -f $QUEUE ] ; then
+
+        cat $QUEUE | while read row;
+        do
+            # Ignore lines that have ; or # at the beginning
+            row=`echo $row | sed -e 's/^\s*[;#].*//'`
+
+            # Extract url, download_dir and limit_rate
+            url=`echo $row | awk '{print $1}'`
+            download_dir="${DOWNLOAD_DIR}/`echo $row | awk '{print $2}'`"
+            limit_rate=`echo $row | awk '{print $3}'`
+
+            if [ $url ] ; then
+
+                if [ "x`ls ${download_dir} 2>/dev/null`" == "x" ] ; then
+                    mkdir -p $download_dir
+                fi
+
+                if [ "x${limit_rate}" == "x-" -o "x${limit_rate}" == "x" ] ; then
+                    limit_rate=$LIMIT_RATE;
+                fi
+
+                if [ "x`ps aux | grep wget | grep -v grep | awk '{ print $NF }' | grep $url`" == "x" ] ; then
+
+                    cd $download_dir
+                    extension=`echo $url | md5sum | awk '{print $1}'`
+                    wget --continue --limit-rate=$limit_rate --append-output=$LOG_FILES_PREFIX.$extension $url 1>/dev/null &
+                    pid=$!
+
+                    # Save pid somewhere so we can cleanup it later if needed
+                    echo $pid >> $PIDS_FILE
+                fi
+            fi
+
+        done
+
+        # wait for changes
+        inotifywait --quiet --event MOVE_SELF --event MODIFY $QUEUE 1>/dev/null &
+        SLAVE=$!
+        wait $SLAVE
+
+        # Queue file has been modified so cleanup running process and then try again
+        clean_up
+    else
+        echo "Nothing to do. You have to create your ~/.getitrc file and specify DOWNLOAD_DIR, QUEUE and LIMIT_RATE there."
+        clean_up
+        exit;
+    fi
+done

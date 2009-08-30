@@ -1,0 +1,61 @@
+#!/bin/sh
+# vim: set expandtab tabstop=4 shiftwidth=4 foldmethod=marker:
+#
+# Getit, simplified, yet powerful download manager
+#
+#   Author: Armen Baghumian <armen@OpenSourceClub.org>
+#   Version: 0.1
+#   License: There is no license, then you are free to do WHAT EVER YOU WANT with
+#            this script
+#
+
+CONFIG="/etc/default/getitd.cfg"
+RC="${HOME}/.getitrc"
+
+# Read config file if it is present
+[ -r $CONFIG ] && . $CONFIG
+
+# Read getitrc file if it is present
+[ -r $RC ] && . $RC
+
+case "$1" in
+    push)
+        echo -e "$2 $3 $4" | cat - $QUEUE >> /tmp/getit.queue
+        cp /tmp/getit.queue $QUEUE
+        rm -f /tmp/getit.queue
+    ;;
+    queue)
+        echo "$2 $3 $4" >> $QUEUE
+	;;
+    stop|suspend)
+        temp=`grep -e "^\s*[^;#]" $QUEUE 2>/dev/null`
+        if [ "$temp" ] ; then
+            sed -i -e "s/^/;/" $QUEUE
+            echo "Stoped downloading."
+        else
+            echo "Already stoped!"
+        fi
+    ;;
+    start)
+        if [ "x`grep -e "^\s*[^;#]" $QUEUE 2>/dev/null`" == "x" ] ; then
+            sed -i -e "s/^;//" $QUEUE
+            echo "Starting to download."
+        else
+            echo "Already downloading!"
+        fi
+	;;
+    status)
+        if [ -e /tmp/getit.pids ] ; then
+            echo "Downloading..."
+        else
+            echo "Stoped!"
+        fi
+    ;;
+    *)
+	echo "Usage: getitctl queue url [download_dir] [limit_rate]"
+    echo "       getitctl push url [download_dir] [limit_rate]"
+    echo "       getitctl stop|suspend"
+    echo "       getitctl start"
+    echo "       getitctl status"
+	;;
+esac
