@@ -17,6 +17,8 @@ LOG_FILES_PREFIX="/tmp/getit.log"
 DOWNLOAD_DIR="${HOME}/downloads"
 QUEUE="${DOWNLOAD_DIR}/queue.txt"
 LIMIT_RATE=0
+TRIES=20
+WAIT_RETRY=30
 
 # Read getitrc file if it is present
 [ -r $CONFIG ] && . $CONFIG
@@ -86,7 +88,9 @@ do
 
                     cd $download_dir
                     extension=`echo $url | md5sum | awk '{print $1}'`
-                    wget --continue --limit-rate=$limit_rate --append-output=$LOG_FILES_PREFIX.$extension $url 1>/dev/null &
+                    wget --waitretry=$WAIT_RETRY --tries=$TRIES  --progress=bar:force --continue \
+                         --limit-rate=$limit_rate --output-file=$LOG_FILES_PREFIX.$extension \
+                         $url 1>/dev/null &
                     pid=$!
 
                     # Save pid somewhere so we can cleanup it later if needed
