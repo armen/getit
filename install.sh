@@ -33,7 +33,7 @@ case "$1" in
         /etc/init.d/getit stop
 
         rm -f /etc/init.d/getit
-        rm -f /etc/default/getit.cfg
+        rm -f /etc/default/getitd.cfg
         rm -f /usr/sbin/getitd
         rm -f /usr/bin/getitctl
 
