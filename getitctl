@@ -18,6 +18,52 @@ RC="${HOME}/.getitrc"
 # Read getitrc file if it is present
 [ -r $RC ] && . $RC
 
+function cleanup_queue {
+
+        if [ -f $QUEUE ] ; then
+            # use temp file, we don't want to disturb inotifywait yet
+            TMP_QUEUE="/tmp/getit.queue.txt"
+            hash=`md5sum ${QUEUE} | awk '{print $1}'`
+            cp $QUEUE $TMP_QUEUE
+            cat $QUEUE | while read row;
+            do
+                # ignore lines that have ; or # at the beginning
+                row=`echo $row | sed -e 's/^\s*[;#].*//'`
+
+                # extract url, download_dir and limit_rate
+                url=`echo $row | awk '{print $1}'`
+
+                if [ $url ] ; then
+
+                    extension=`echo $url | md5sum | awk '{print $1}'`
+
+                    fully_retrieved=`grep "fully retrieved;" /tmp/getit.log.${extension} 2>/dev/null`
+
+                    if [ "x$fully_retrieved" != "x" ] ; then
+                        already_there=`grep "$url" $COMPLETED 2>/dev/null`
+                        if [ "x$already_there" == "x" ]; then
+                            echo $row >> $COMPLETED
+                        fi
+                        url=`echo "$url" | sed "s,/,\\\\\\\\\\/,g"`
+                        sed -i "/^\s*${url}/d" $TMP_QUEUE
+                    fi
+                fi
+            done
+
+            new_hash=`md5sum ${QUEUE} | awk '{print $1}'`
+            tmp_hash=`md5sum ${TMP_QUEUE} | awk '{print $1}'`
+
+            if [ $new_hash == $hash ] ; then
+                if [ $tmp_hash != $hash ] ; then
+                    mv $TMP_QUEUE $QUEUE
+                fi
+            else
+                # queue file has been changed do the process again
+                cleanup_queue
+            fi
+        fi
+}
+
 case "$1" in
     push)
         echo -e "$2 $3 $4" | cat - $QUEUE >> /tmp/getit.queue
@@ -45,11 +91,57 @@ case "$1" in
         fi
 	;;
     status)
-        if [ -e /tmp/getit.pids ] ; then
-            echo "Downloading..."
+
+        running=`ps -A | grep getitd`
+        echo
+
+        if [ "$running" ] ; then
+            if [ -f $QUEUE ] ; then
+                cat $QUEUE | while read row;
+                do
+                    # ignore lines that have ; or # at the beginning
+                    row=`echo $row | sed -e 's/^\s*[;#].*//'`
+
+                    # extract url, download_dir and limit_rate
+                    url=`echo $row | awk '{print $1}'`
+
+                    if [ $url ] ; then
+
+                        extension=`echo $url | md5sum | awk '{print $1}'`
+                        progress=`tail --quiet --lines=1 /tmp/getit.log.${extension} 2>/dev/null | grep -e "[0-9]\+%"`
+
+                        if [ "$progress" ] ; then
+                            echo " $url"
+                            echo "$progress"
+                            echo
+                        else
+                            fully_retrieved=`grep "fully retrieved;" /tmp/getit.log.${extension} 2>/dev/null `
+
+                            if [ "x$fully_retrieved" == "x" ] ; then
+                                echo " $url"
+                                echo " Processing... hang on a second!"
+                                echo " If this is a permanent error message, recheck the url"
+                                echo
+                            else
+                                echo " $url"
+                                echo " 100%  Nothing to do."
+                                echo
+                            fi
+                        fi
+                    fi
+                done
+            else
+                echo "Nothing to do!"
+                echo
+            fi
         else
-            echo "Stoped!"
+            echo "Stopped! start the daemon first."
+            echo
         fi
+    ;;
+    cleanup-queue)
+
+        cleanup_queue
     ;;
     *)
 	echo "Usage: getitctl queue url [download_dir] [limit_rate]"
