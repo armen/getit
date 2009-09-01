@@ -19,6 +19,7 @@ QUEUE="${DOWNLOAD_DIR}/queue.txt"
 LIMIT_RATE=0
 TRIES=20
 WAIT_RETRY=30
+CONCURRENT_DOWNLOADS=20
 
 # read getitrc file if it is present
 [ -r $CONFIG ] && . $CONFIG
@@ -55,7 +56,7 @@ function start_download {
 
     if [ -f $QUEUE ] ; then
 
-        cat $QUEUE | while read row;
+        cat $QUEUE | head --lines=$CONCURRENT_DOWNLOADS | while read row;
         do
             # ignore lines that have ; or # at the beginning
             row=`echo $row | sed -e 's/^\s*[;#].*//'`

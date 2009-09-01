@@ -97,7 +97,7 @@ case "$1" in
 
         if [ "$running" ] ; then
             if [ -f $QUEUE ] ; then
-                cat $QUEUE | while read row;
+                cat $QUEUE | head --lines=$CONCURRENT_DOWNLOADS | while read row;
                 do
                     # ignore lines that have ; or # at the beginning
                     row=`echo $row | sed -e 's/^\s*[;#].*//'`
