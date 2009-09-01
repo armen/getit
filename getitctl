@@ -34,8 +34,14 @@ function status {
                     in_progress_count=$total_urls
                 fi
 
-                echo " Downloading ${in_progress_count} URLs from ${total_urls} URLs and completed ${total_completed_urls} URLs until now."
-                echo
+                running=`grep -e "^\s*[^;#]" $QUEUE 2>/dev/null`
+                if [ "$running" ] ; then
+                    echo " Downloading ${in_progress_count} URLs from ${total_urls} URLs and completed ${total_completed_urls} URLs until now."
+                    echo
+                else
+                    echo " Stopped!, use \"getitctl start\" to start it again."
+                    echo
+                fi
 
                 cat $QUEUE | head --lines=$CONCURRENT_DOWNLOADS | while read row;
                 do
@@ -136,8 +142,8 @@ case "$1" in
         echo "$2 $3 $4" >> $QUEUE
 	;;
     stop|suspend|sp)
-        temp=`grep -e "^\s*[^;#]" $QUEUE 2>/dev/null`
-        if [ "$temp" ] ; then
+        running=`grep -e "^\s*[^;#]" $QUEUE 2>/dev/null`
+        if [ "$running" ] ; then
             sed -i -e "s/^/;/" $QUEUE
             echo "Stoped downloading."
         else
