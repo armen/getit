@@ -40,19 +40,19 @@ function status {
 
                         if [ "$progress" ] ; then
                             echo " $url"
-                            echo "$progress"
+                            echo "   $progress"
                             echo
                         else
                             fully_retrieved=`grep "fully retrieved;" /tmp/getit.log.${extension} 2>/dev/null `
 
                             if [ "x$fully_retrieved" == "x" ] ; then
                                 echo " $url"
-                                echo " Processing... hang on a second!"
-                                echo " If this is a permanent error message, recheck the url"
+                                echo "   Processing... hang on a second!"
+                                echo "   If this is a permanent error message, recheck the url"
                                 echo
                             else
                                 echo " $url"
-                                echo " 100%  Nothing to do."
+                                echo "   100%  Nothing to do."
                                 echo
                             fi
                         fi
