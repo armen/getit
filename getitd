@@ -16,10 +16,11 @@ LOG_FILES_PREFIX="/tmp/getit.log"
 # default configs
 DOWNLOAD_DIR="${HOME}/downloads"
 QUEUE="${DOWNLOAD_DIR}/queue.txt"
+COMPLETED="${DOWNLOAD_DIR}/completed.txt"
 LIMIT_RATE=0
 TRIES=20
 WAIT_RETRY=30
-CONCURRENT_DOWNLOADS=20
+CONCURRENT_DOWNLOADS=15
 
 # read getitrc file if it is present
 [ -r $CONFIG ] && . $CONFIG
