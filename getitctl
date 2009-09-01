@@ -75,7 +75,7 @@ function status {
                 echo
             fi
         else
-            echo "Stopped! start the daemon first."
+            echo "Daemon is not running!, start the daemon first."
             echo
         fi
 }
