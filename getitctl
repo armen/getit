@@ -25,6 +25,18 @@ function status {
 
         if [ "$running" ] ; then
             if [ -f $QUEUE ] ; then
+
+                in_progress_count=$CONCURRENT_DOWNLOADS
+                total_urls=`wc -l ${QUEUE} | awk '{ print $1}'`
+                total_completed_urls=`wc -l ${COMPLETED} | awk '{ print $1}'`
+
+                if [ "$total_urls" -lt "$in_progress_count" ] ; then
+                    in_progress_count=$total_urls
+                fi
+
+                echo " Downloading ${in_progress_count} URLs from ${total_urls} URLs and completed ${total_completed_urls} URLs until now."
+                echo
+
                 cat $QUEUE | head --lines=$CONCURRENT_DOWNLOADS | while read row;
                 do
                     # ignore lines that have ; or # at the beginning
