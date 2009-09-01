@@ -1,10 +1,16 @@
-Getitd, simplified, yet powerful download manager
+Getit, simplified, yet powerful download manager.
+
+Getit is daemon that uses inotify to monitor a simple
+text file (queue) and downloads any link that get paste
+there with wget. The queue accepts not only URLs but also
+download subdirectory and download rate. With getitctl
+you can completely control Getit daemon.
 
 === Installation ===
 
 1) To install run ./install.sh script as root user
-2) Modify /etc/default/getit.cfg and set DAEMONUSER
-3) (optional) Change DOWNLOAD_DIR, QUEUE and LIMIT_RATE
+2) Modify /etc/default/getit.cfg and set DAEMON_USER
+3) (optional) Set DOWNLOAD_DIR, QUEUE, LIMIT_RATE, etc
 4) (optional) To overide /etc/default/getit.cfg file,
    you can create ~/.getitrc, beware that you can't overide
    DAEMONUSER anyway
@@ -12,15 +18,15 @@ Getitd, simplified, yet powerful download manager
 
 === Usage ===
 
-Paste url in queue file. you can specify save path and download
-rate straight after pasted url.
+Paste URL in queue file. You can specify save path and download
+rate straight after pasted URL.
 
-this is sample queue file format
+This is sample queue file format
 
 http://example.org/blahblah.tar.gz foo 3k
 http://example.org/blahblah3.tar.gz bar/baz 2k
 
-it will download first file in $DOWNLOAD_DIR/foo directory with
+It will download first file in $DOWNLOAD_DIR/foo directory with
 3k limit rate and second one in $DOWNLOAD_DIR/bar/baz/ directory
 with 2k limit rate.
 
@@ -29,25 +35,29 @@ with 2k limit rate.
 If you don't want to touch queue file, you can use getitctl to
 manage it.
 
-Following command adds a url at the beginning of the queue
+Following command adds a URL at the beginning of the queue
 
-$getitctl push http://example.org/url path 20k 
+$getitctl push http://example.org/url path 20k OR $getitctl p ...
 
-and following command adds a url at the end of queue
+And following command adds a URL at the end of queue
 
-$getitctl queue http://example.org/url path 20k 
+$getitctl queue http://example.org/url path 20k OR $getitctl q ...
 
-to stop or suspend downloading run
+To stop or suspend downloading run
 
-$getitctl stop
+$getitctl stop OR $getitctl sp
 
-and to start it again run
+And to start it again run
 
-$getitctl start
+$getitctl start OR $getitctl go
 
-to get curent status of it run
+To get current status of downloading URLs, run
 
-$getitctl status
+$getitctl status OR $getitctl st
+
+To follow above status use following command
+
+$getitctl watch-status OR $getitctl ws
 
 === Removeing ===
 
