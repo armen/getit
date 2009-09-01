@@ -115,15 +115,15 @@ function cleanup_queue {
 }
 
 case "$1" in
-    push)
+    push|p)
         echo -e "$2 $3 $4" | cat - $QUEUE >> /tmp/getit.queue
         cp /tmp/getit.queue $QUEUE
         rm -f /tmp/getit.queue
     ;;
-    queue)
+    queue|q)
         echo "$2 $3 $4" >> $QUEUE
 	;;
-    stop|suspend)
+    stop|suspend|sp)
         temp=`grep -e "^\s*[^;#]" $QUEUE 2>/dev/null`
         if [ "$temp" ] ; then
             sed -i -e "s/^/;/" $QUEUE
@@ -132,7 +132,7 @@ case "$1" in
             echo "Already stoped!"
         fi
     ;;
-    start)
+    start|go)
         if [ "x`grep -e "^\s*[^;#]" $QUEUE 2>/dev/null`" == "x" ] ; then
             sed -i -e "s/^;//" $QUEUE
             echo "Starting to download."
@@ -140,11 +140,11 @@ case "$1" in
             echo "Already downloading!"
         fi
 	;;
-    status)
+    status|st)
 
         status
     ;;
-    watch-status)
+    watch-status|wst)
 
         watch "getitctl status"
     ;;
@@ -153,10 +153,12 @@ case "$1" in
         cleanup_queue
     ;;
     *)
-	echo "Usage: getitctl queue url [download_dir] [limit_rate]"
-    echo "       getitctl push url [download_dir] [limit_rate]"
-    echo "       getitctl stop|suspend"
-    echo "       getitctl start"
-    echo "       getitctl status"
+	echo "Usage: getitctl queue|q url [download_dir] [limit_rate]"
+    echo "       getitctl push|p url [download_dir] [limit_rate]"
+    echo "       getitctl stop|suspend|sp"
+    echo "       getitctl start|go"
+    echo "       getitctl status|st"
+    echo "       getitctl watch-status|wst"
+    echo "       getitctl cleanup-queue"
 	;;
 esac
