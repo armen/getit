@@ -144,7 +144,7 @@ case "$1" in
 
         status
     ;;
-    watch-status|wst)
+    watch-status|ws)
 
         watch "getitctl status"
     ;;
@@ -158,7 +158,7 @@ case "$1" in
     echo "       getitctl stop|suspend|sp"
     echo "       getitctl start|go"
     echo "       getitctl status|st"
-    echo "       getitctl watch-status|wst"
+    echo "       getitctl watch-status|ws"
     echo "       getitctl cleanup-queue"
 	;;
 esac
