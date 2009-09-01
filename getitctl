@@ -108,7 +108,7 @@ case "$1" in
                     if [ $url ] ; then
 
                         extension=`echo $url | md5sum | awk '{print $1}'`
-                        progress=`tail --quiet --lines=1 /tmp/getit.log.${extension} 2>/dev/null | grep -e "[0-9]\+%"`
+                        progress=`cat /tmp/getit.log.${extension} | sed -e "s/\r/\n/g" | tail --quiet --lines=1 2>/dev/null | grep -e "[0-9]\+%"`
 
                         if [ "$progress" ] ; then
                             echo " $url"
