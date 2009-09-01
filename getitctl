@@ -48,7 +48,7 @@ function status {
                             if [ "x$fully_retrieved" == "x" ] ; then
                                 echo " $url"
                                 echo "   Processing... hang on a second!"
-                                echo "   If this is a permanent error message, recheck the url"
+                                echo "   If this is a permanent error message, recheck the url or limit rate format."
                                 echo
                             else
                                 echo " $url"

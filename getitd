@@ -43,7 +43,7 @@ function clean_up {
         cat $PIDS_FILE | while read pid;
         do
             if [ $pid ] ; then
-                kill $pid
+                kill $pid 2>/dev/null
             fi
         done
     fi
@@ -66,6 +66,8 @@ function start_download {
             url=`echo $row | awk '{print $1}'`
             download_dir="${DOWNLOAD_DIR}/`echo $row | awk '{print $2}'`"
             limit_rate=`echo $row | awk '{print $3}'`
+            # strip invalid characters from limit_rate
+            limit_rate=`echo $limit_rate | sed -e "s/[^0-9KG]\+//ig"`
 
             if [ $url ] ; then
 
