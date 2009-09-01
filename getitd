@@ -60,14 +60,14 @@ function start_download {
         cat $QUEUE | head --lines=$CONCURRENT_DOWNLOADS | while read row;
         do
             # ignore lines that have ; or # at the beginning
-            row=`echo $row | sed -e 's/^\s*[;#].*//'`
+            row=`echo $row | sed --expression='s/^\s*[;#].*//'`
 
             # extract url, download_dir and limit_rate
             url=`echo $row | awk '{print $1}'`
             download_dir="${DOWNLOAD_DIR}/`echo $row | awk '{print $2}'`"
             limit_rate=`echo $row | awk '{print $3}'`
             # strip invalid characters from limit_rate
-            limit_rate=`echo $limit_rate | sed -e "s/[^0-9KG]\+//ig"`
+            limit_rate=`echo $limit_rate | sed --expression="s/[^0-9KG]\+//ig"`
 
             if [ $url ] ; then
 
@@ -81,7 +81,7 @@ function start_download {
 
                 # prevent starting wget when other process is downloading same url, this is happening when there are
                 # duplicated lines in queue file
-                if [ "x`ps aux | grep wget | grep -v grep | awk '{ print $NF }' | grep $url`" == "x" ] ; then
+                if [ "x`ps aux | grep wget | grep --invert-match grep | awk '{ print $NF }' | grep $url`" == "x" ] ; then
 
                     cd $download_dir
                     extension=`echo $url | md5sum | awk '{print $1}'`

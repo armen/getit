@@ -34,7 +34,7 @@ function status {
                 in_progress_count=$total_urls
             fi
 
-            running=`grep -e "^\s*[^;#]" $QUEUE 2>/dev/null`
+            running=`grep --regexp="^\s*[^;#]" $QUEUE 2>/dev/null`
             if [ "$running" ] ; then
                 echo " Downloading ${in_progress_count} URLs from ${total_urls} URLs and completed ${total_completed_urls} URLs until now."
                 echo
@@ -46,7 +46,7 @@ function status {
             cat $QUEUE | head --lines=$CONCURRENT_DOWNLOADS | while read row;
             do
                 # ignore lines that have ; or # at the beginning
-                row=`echo $row | sed -e 's/^\s*[;#].*//'`
+                row=`echo $row | sed --expression='s/^\s*[;#].*//'`
 
                 # extract url, download_dir and limit_rate
                 url=`echo $row | awk '{print $1}'`
@@ -54,7 +54,8 @@ function status {
                 if [ $url ] ; then
 
                     extension=`echo $url | md5sum | awk '{print $1}'`
-                    progress=`cat /tmp/getit.log.${extension} 2>/dev/null | sed -e "s/\r/\n/g" | tail --quiet --lines=1 | grep -e "[0-9]\+%"`
+                    progress=`cat /tmp/getit.log.${extension} 2>/dev/null | sed --expression="s/\r/\n/g" | \
+                             tail --quiet --lines=1 | grep --regexp="[0-9]\+%"`
 
                     if [ "$progress" ] ; then
                         echo " $url"
@@ -96,7 +97,7 @@ function cleanup_queue {
         cat $QUEUE | while read row;
         do
             # ignore lines that have ; or # at the beginning
-            row=`echo $row | sed -e 's/^\s*[;#].*//'`
+            row=`echo $row | sed --expression='s/^\s*[;#].*//'`
 
             # extract url, download_dir and limit_rate
             url=`echo $row | awk '{print $1}'`
@@ -113,7 +114,7 @@ function cleanup_queue {
                         echo $row >> $COMPLETED
                     fi
                     url=`echo "$url" | sed "s,/,\\\\\\\\\\/,g"`
-                    sed -i "/^\s*${url}/d" $TMP_QUEUE
+                    sed --in-place "/^\s*${url}/d" $TMP_QUEUE
                 fi
             fi
         done
@@ -142,17 +143,17 @@ case "$1" in
         echo "$2 $3 $4" >> $QUEUE
 	;;
     stop|suspend|sp)
-        running=`grep -e "^\s*[^;#]" $QUEUE 2>/dev/null`
+        running=`grep --regexp="^\s*[^;#]" $QUEUE 2>/dev/null`
         if [ "$running" ] ; then
-            sed -i -e "s/^/;/" $QUEUE
+            sed --in-place --expression="s/^/;/" $QUEUE
             echo "Stoped downloading."
         else
             echo "Already stoped!"
         fi
     ;;
     start|go)
-        if [ "x`grep -e "^\s*[^;#]" $QUEUE 2>/dev/null`" == "x" ] ; then
-            sed -i -e "s/^;//" $QUEUE
+        if [ "x`grep --regexp="^\s*[^;#]" $QUEUE 2>/dev/null`" == "x" ] ; then
+            sed --in-place --expression="s/^;//" $QUEUE
             echo "Starting to download."
         else
             echo "Already downloading!"
@@ -164,7 +165,7 @@ case "$1" in
     ;;
     watch-status|ws)
 
-        watch "getitctl status"
+        watch --interval=1 --no-title "getitctl status"
     ;;
     cleanup-queue)
 
