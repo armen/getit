@@ -93,7 +93,7 @@ function cleanup_queue {
         TMP_QUEUE="/tmp/getit.queue.txt"
         hash=`md5sum ${QUEUE} | awk '{print $1}'`
         cp $QUEUE $TMP_QUEUE
-        cat $QUEUE | while read row;
+        cat $QUEUE | head --lines=$CONCURRENT_DOWNLOADS | while read row;
         do
             # ignore lines that have ; or # at the beginning
             row=`echo $row | sed --expression='s/^\s*[;#].*//'`
@@ -114,6 +114,17 @@ function cleanup_queue {
                     fi
                     url=`echo "$url" | sed "s,/,\\\\\\\\\\/,g"`
                     sed --in-place "/^\s*${url}/d" $TMP_QUEUE
+                else
+                    progress=`cat /tmp/getit.log.${extension} 2>/dev/null | sed --expression="s/\r/\n/g" | \
+                             tail --quiet --lines=1 | grep --regexp="[0-9]\+%"`
+
+                    if [ "x$progress" == "x" ] ; then
+                        # there is a problem in url
+                        # move it at the end of queue. so we can download other files
+                        url=`echo "$url" | sed "s,/,\\\\\\\\\\/,g"`
+                        sed --in-place "/^\s*${url}/d" $TMP_QUEUE
+                        echo "$row" >> $TMP_QUEUE
+                    fi
                 fi
             fi
         done
