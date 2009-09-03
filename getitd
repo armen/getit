@@ -112,16 +112,26 @@ while (true);
 do
     # 2 indicates timeout
     if [ "$inotify_ret" != "2" ] ; then
-        clean_up
-        start_download
+        if [ "$fingerprint" != "$new_fingerprint" ] ; then
+            # finger print has been changed, do the work
+            clean_up
+            start_download
+        fi
     else
         # run cleanup-queue in the background and quickly watch queue file again
         getitctl cleanup-queue &
     fi
+
+    # save fingerprint
+    fingerprint=`cat $QUEUE | head --lines=$CONCURRENT_DOWNLOADS | md5sum | awk '{print $1}'`
 
     # watch queue file
     inotifywait --quiet --timeout=30 --event MOVE_SELF --event MODIFY $QUEUE 1>/dev/null &
     inotify_pid=$!      # catch its pid so we can cleanup it later when a SIGNAL received
     wait $inotify_pid   # wait for it
     inotify_ret=$?      # an then catch the return value, 2 indicates timeout
+
+    # get new fingerprint, sleep fo 1 second so file will be available for reading
+    sleep 1
+    new_fingerprint=`cat $QUEUE | head --lines=$CONCURRENT_DOWNLOADS | md5sum | awk '{print $1}'`
 done
