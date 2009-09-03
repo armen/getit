@@ -27,7 +27,7 @@ CONCURRENT_DOWNLOADS=15
 
 # create download directory if it is not exists
 if [ "x`ls ${DOWNLOAD_DIR} 2>/dev/null`" == "x" ] ; then
-    mkdir -p $DOWNLOAD_DIR
+    mkdir --parents $DOWNLOAD_DIR
 
     # it seems this first attempt to run so create queue file too
     if [ "x`ls ${QUEUE} 2>/dev/null`" == "x" ] ; then
@@ -72,7 +72,7 @@ function start_download {
             if [ $url ] ; then
 
                 if [ "x`ls ${download_dir} 2>/dev/null`" == "x" ] ; then
-                    mkdir -p $download_dir
+                    mkdir --parents $download_dir
                 fi
 
                 if [ "x${limit_rate}" == "x-" -o "x${limit_rate}" == "x" ] ; then
