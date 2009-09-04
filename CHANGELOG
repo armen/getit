@@ -1,0 +1,23 @@
+Getit CHANGELOG
+===============
+
+0.2.1 (Sep 4, 2009)
+-------------------
+
+ADD: Added CHANGELOG
+
+0.2 (Sep 4, 2009)
+-----------------
+
+CHG: Used fingerprinting mechanism to reduce unnecessary termination of wget
+CHG: Detect broken links and move those to end of queue
+CHG: Download all files in partial directory and move those out when progress is completed
+ADD: Added brief statistics line to "getitctl stats"
+CHG: Detected "getitctl stop" to display better message in "getitctl status"
+CHG: Cleaner "getitctl status" screen
+FIX: Added missing M from limit_rate validation
+
+0.1 (Sep 1, 2009)
+-----------------
+
+Initial Release
