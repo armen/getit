@@ -36,7 +36,8 @@ function status {
 
             running=`grep --regexp="^\s*[^;#]" $QUEUE 2>/dev/null`
             if [ "$running" ] ; then
-                echo " Downloading ${in_progress_count} URLs from ${total_urls} URLs and completed ${total_completed_urls} URLs until now."
+                printf " Downloading %d URLs from %d URLs and completed %d URLs until now." $in_progress_count $total_urls $total_completed_urls
+                echo
                 echo
             else
                 echo " Stopped!, use \"getitctl start\" to start it again."
