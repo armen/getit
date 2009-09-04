@@ -49,7 +49,7 @@ function start_download {
             download_dir="${DOWNLOAD_DIR}/`echo $row | awk '{print $2}'`"
             limit_rate=`echo $row | awk '{print $3}'`
             # strip invalid characters from limit_rate
-            limit_rate=`echo $limit_rate | sed --expression="s/[^0-9KG]\+//ig"`
+            limit_rate=`echo $limit_rate | sed --expression="s/[^0-9KMG]\+//ig"`
 
             if [ $url ] ; then
 
