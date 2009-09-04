@@ -1,10 +1,19 @@
 Getit, simplified, yet powerful download manager.
 
-Getit is daemon that uses inotify to monitor a simple
-text file (queue) and downloads any link that get paste
-there with wget. The queue accepts not only URLs but also
-download subdirectory and download rate. With getitctl
-you can completely control Getit daemon.
+Getit is a daemon to manage concurrent URL downloads with wget.
+It uses very simple but powerful queue mechanism to download
+any URL that get pasted in queue file.
+Queue file is a simple text file that accepts not only URLs
+but also download subdirectory and download rate.
+Getit monitors the queue file and detects any changes that
+made in queue file, and determine if its necessary to 
+terminate any download that is in progress or not, so it
+ignores any changes that is not related to in progress
+downloads.
+Getit is capable of detecting broken links and push those
+to end of the queue.
+Getit downloads all URLs to a temporary directory and moves
+those to target subdirectory after completion.
 
 === Installation ===
 
