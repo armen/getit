@@ -15,6 +15,7 @@ LOG_FILES_PREFIX="/tmp/getit.log"
 
 # default configs
 DOWNLOAD_DIR="${HOME}/downloads"
+PARTIAL_DOWNLOAD_DIR="${DOWNLOAD_DIR}/.partial/"
 QUEUE="${DOWNLOAD_DIR}/queue.txt"
 COMPLETED="${DOWNLOAD_DIR}/completed.txt"
 LIMIT_RATE=0
@@ -25,9 +26,9 @@ CONCURRENT_DOWNLOADS=15
 # read getitrc file if it is present
 [ -r $CONFIG ] && . $CONFIG
 
-# create download directory if it is not exists
-if [ "x`ls ${DOWNLOAD_DIR} 2>/dev/null`" == "x" ] ; then
-    mkdir --parents $DOWNLOAD_DIR
+# create partial download directory if it is not exists
+if [ "x`ls ${PARTIAL_DOWNLOAD_DIR} 2>/dev/null`" == "x" ] ; then
+    mkdir --parents $PARTIAL_DOWNLOAD_DIR
 
     # it seems this first attempt to run so create queue file too
     if [ "x`ls ${QUEUE} 2>/dev/null`" == "x" ] ; then
@@ -44,10 +45,11 @@ function start_download {
             # ignore lines that have ; or # at the beginning
             row=`echo $row | sed --expression='s/^\s*[;#].*//'`
 
-            # extract url, download_dir and limit_rate
+            # extract url, download_dir limit_rate
             url=`echo $row | awk '{print $1}'`
-            download_dir="${DOWNLOAD_DIR}/`echo $row | awk '{print $2}'`"
+            download_dir="${PARTIAL_DOWNLOAD_DIR}/`echo $row | awk '{print $2}'`"
             limit_rate=`echo $row | awk '{print $3}'`
+
             # strip invalid characters from limit_rate
             limit_rate=`echo $limit_rate | sed --expression="s/[^0-9KMG]\+//ig"`
 
@@ -55,7 +57,7 @@ function start_download {
 
                 if [ "x`ls ${download_dir} 2>/dev/null`" == "x" ] ; then
                     mkdir --parents $download_dir
-                fi
+                fi                
 
                 if [ "x${limit_rate}" == "x-" -o "x${limit_rate}" == "x" ] ; then
                     limit_rate=$LIMIT_RATE;
@@ -65,15 +67,18 @@ function start_download {
                 # duplicated lines in queue file
                 if [ "x`ps aux | grep wget | grep --invert-match grep | awk '{ print $NF }' | grep $url`" == "x" ] ; then
 
+                    filepath=`echo "$url" | perl -MURI -le 'chomp($url = <>); print URI->new($url)->path'`
+                    filename=`basename "${filepath}"`
+
                     cd $download_dir
                     hash=`echo $url | md5sum | awk '{print $1}'`
                     wget --waitretry=$WAIT_RETRY --tries=$TRIES  --progress=bar:force --continue \
                          --limit-rate=$limit_rate --output-file=$LOG_FILES_PREFIX.$hash \
-                         $url 1>/dev/null &
+                          --output-document=$filename $url 1>/dev/null &
                     pid=$!
 
                     # save pid somewhere so we can cleanup it later
-                    echo "${pid} ${hash} ${url}" >> $PIDS_FILE
+                    echo "${pid} ${hash} ${url} ${filename}" >> $PIDS_FILE
                 fi
             fi
 
@@ -122,6 +127,9 @@ function terminate {
     # remove log files and pids file
     rm -rf $PIDS_FILE
     rm -rf $LOG_FILES_PREFIX.*
+
+    # remove all empty directories from partial download dir
+    find $PARTIAL_DOWNLOAD_DIR -depth -type d -empty -exec rmdir {} \;
 
     exit
 }

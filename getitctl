@@ -11,6 +11,18 @@
 
 CONFIG="/etc/default/getitd.cfg"
 RC="${HOME}/.getitrc"
+PIDS_FILE="/tmp/getit.pids"
+LOG_FILES_PREFIX="/tmp/getit.log"
+
+# default configs
+DOWNLOAD_DIR="${HOME}/downloads"
+PARTIAL_DOWNLOAD_DIR="${DOWNLOAD_DIR}/.partial/"
+QUEUE="${DOWNLOAD_DIR}/queue.txt"
+COMPLETED="${DOWNLOAD_DIR}/completed.txt"
+LIMIT_RATE=0
+TRIES=20
+WAIT_RETRY=30
+CONCURRENT_DOWNLOADS=15
 
 # Read config file if it is present
 [ -r $CONFIG ] && . $CONFIG
@@ -49,7 +61,7 @@ function status {
                 # ignore lines that have ; or # at the beginning
                 row=`echo $row | sed --expression='s/^\s*[;#].*//'`
 
-                # extract url, download_dir and limit_rate
+                # extract url
                 url=`echo $row | awk '{print $1}'`
 
                 if [ $url ] ; then
@@ -99,13 +111,18 @@ function cleanup_queue {
             # ignore lines that have ; or # at the beginning
             row=`echo $row | sed --expression='s/^\s*[;#].*//'`
 
-            # extract url, download_dir and limit_rate
+            # extract url, download_dir
             url=`echo $row | awk '{print $1}'`
+            download_dir="${DOWNLOAD_DIR}/`echo $row | awk '{print $2}'`"
+            partial_download_dir="${PARTIAL_DOWNLOAD_DIR}/`echo $row | awk '{print $2}'`"
 
             if [ $url ] ; then
 
-                extension=`echo $url | md5sum | awk '{print $1}'`
+                if [ "x`ls ${download_dir} 2>/dev/null`" == "x" ] ; then
+                    mkdir --parents $download_dir
+                fi
 
+                extension=`echo $url | md5sum | awk '{print $1}'`
                 fully_retrieved=`grep "fully retrieved;" /tmp/getit.log.${extension} 2>/dev/null`
 
                 if [ "x$fully_retrieved" != "x" ] ; then
@@ -115,6 +132,10 @@ function cleanup_queue {
                     fi
                     url=`echo "$url" | sed "s,/,\\\\\\\\\\/,g"`
                     sed --in-place "/^\s*${url}/d" $TMP_QUEUE
+
+                    # find file name then move it to its download_dir, first of all we have to find pid
+                    filename=`cat ${PIDS_FILE} | grep "${url}" | awk '{print $4}'`
+                    mv "${partial_download_dir}/${filename}" $download_dir
                 else
                     progress=`cat /tmp/getit.log.${extension} 2>/dev/null | sed --expression="s/\r/\n/g" | \
                              tail --quiet --lines=1 | grep --regexp="[0-9]\+%"`
