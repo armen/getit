@@ -35,24 +35,6 @@ if [ "x`ls ${DOWNLOAD_DIR} 2>/dev/null`" == "x" ] ; then
     fi
 fi
 
-# cleanup function
-function clean_up {
-
-    if [ -f $PIDS_FILE ] ; then
-
-        cat $PIDS_FILE | while read pid;
-        do
-            if [ $pid ] ; then
-                kill $pid 2>/dev/null
-            fi
-        done
-    fi
-
-    # remove log files and pids file
-    rm -rf $PIDS_FILE
-    rm -rf $LOG_FILES_PREFIX.*
-}
-
 function start_download {
 
     if [ -f $QUEUE ] ; then
@@ -84,14 +66,14 @@ function start_download {
                 if [ "x`ps aux | grep wget | grep --invert-match grep | awk '{ print $NF }' | grep $url`" == "x" ] ; then
 
                     cd $download_dir
-                    extension=`echo $url | md5sum | awk '{print $1}'`
+                    hash=`echo $url | md5sum | awk '{print $1}'`
                     wget --waitretry=$WAIT_RETRY --tries=$TRIES  --progress=bar:force --continue \
-                         --limit-rate=$limit_rate --output-file=$LOG_FILES_PREFIX.$extension \
+                         --limit-rate=$limit_rate --output-file=$LOG_FILES_PREFIX.$hash \
                          $url 1>/dev/null &
                     pid=$!
 
                     # save pid somewhere so we can cleanup it later
-                    echo $pid >> $PIDS_FILE
+                    echo "${pid} ${hash} ${url}" >> $PIDS_FILE
                 fi
             fi
 
@@ -99,9 +81,48 @@ function start_download {
     fi
 }
 
+function clean_up {
+
+    if [ -f $PIDS_FILE ] ; then
+
+        cat $PIDS_FILE | while read row;
+        do
+            pid=`echo $row | awk '{ print $1 }'`
+            hash=`echo $row | awk '{ print $2 }'`
+            url=`echo $row | awk '{ print $3 }'`
+            is_in_queue=`cat $QUEUE | head --lines=$CONCURRENT_DOWNLOADS | grep "$url" 2>/dev/null`
+
+            if [ "x${is_in_queue}" == "x" ] ; then
+                if [ $pid ] ; then
+                    # its not in queue and not empty, kill it and remove log file
+                    kill $pid 2>/dev/null
+                    sed --in-place "/^${pid}/d" $PIDS_FILE
+                    rm -rf "${LOG_FILES_PREFIX}.${hash}"
+                fi
+            fi
+        done
+    fi
+}
+
 function terminate {
-    clean_up
+
+    if [ -f $PIDS_FILE ] ; then
+
+        cat $PIDS_FILE | while read row;
+        do
+            pid=`echo $row | awk '{ print $1 }'`
+            if [ $pid ] ; then
+                kill $pid 2>/dev/null
+            fi
+        done
+    fi
+
     kill $inotify_pid
+
+    # remove log files and pids file
+    rm -rf $PIDS_FILE
+    rm -rf $LOG_FILES_PREFIX.*
+
     exit
 }
 
