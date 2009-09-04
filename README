@@ -73,3 +73,8 @@ $getitctl watch-status OR $getitctl ws
 To remove getit execute following command as root
 
 ./install.sh remove
+
+=== Screenshots ===
+
+http://pub.vardump.org/getit/
+
