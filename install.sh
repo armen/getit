@@ -1,14 +1,21 @@
 #!/bin/sh
 
 ROOT_UID=0
-CWD="`pwd`"
+CWD=`pwd`
 
+CORE="$CWD/getit-core"
+SH_SETUP="$CWD/sh-setup"
 DAEMON="$CWD/getitd"
 INITSCRIPT="$CWD/getit"
 CONFIG="$CWD/getitd.cfg"
 CTL="$CWD/getitctl"
 
-echo $CONFIG
+CORE_DEST="/usr/bin/getit-core"
+SH_SETUP_DEST="/usr/bin/sh-setup"
+DAEMON_DEST="/usr/sbin/getitd"
+INITSCRIPT_DEST="/etc/init.d/getit"
+CONFIG_DEST="/etc/default/getitd.cfg"
+CTL_DEST="/usr/bin/getitctl"
 
 if [ "$UID" -ne "$ROOT_UID" ]
 then
@@ -30,23 +37,27 @@ fi
 
 case "$1" in
     remove)
-        /etc/init.d/getit stop
+        /etc/init.d/getit stop 2>/dev/null
 
-        rm -f /etc/init.d/getit
-        rm -f /etc/default/getitd.cfg
-        rm -f /usr/sbin/getitd
-        rm -f /usr/bin/getitctl
+        rm -f $CORE_DEST
+        rm -f $SH_SETUP_DEST
+        rm -f $DAEMON_DEST
+        rm -f $INITSCRIPT_DEST
+        rm -f $CONFIG_DEST
+        rm -f $CTL_DEST
 
-      echo
-      update-rc.d getit remove
-      echo
+        echo
+        update-rc.d getit remove
+        echo
     ;;
     *)
 
-        cp $DAEMON /usr/sbin/getitd
-        cp $INITSCRIPT /etc/init.d/getit
-        cp $CONFIG /etc/default/getitd.cfg
-        cp $CTL /usr/bin/getitctl
+        cp $CORE $CORE_DEST
+        cp $SH_SETUP $SH_SETUP_DEST
+        cp $DAEMON $DAEMON_DEST
+        cp $INITSCRIPT $INITSCRIPT_DEST
+        cp $CONFIG $CONFIG_DEST
+        cp $CTL $CTL_DEST
 
         echo
         update-rc.d getit defaults 99 01

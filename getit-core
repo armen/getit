@@ -1,0 +1,425 @@
+#! /bin/bash
+# vim: set expandtab tabstop=4 shiftwidth=4 foldmethod=marker:
+#
+# Getit, simplified, yet powerful download manager
+#
+#   Author: Armen Baghumian <armen@OpenSourceClub.org>
+#   Version: 0.1
+#   License: There is no license, then you are free to do WHAT EVER YOU WANT with
+#            this script
+#
+
+. sh-setup
+
+CONFIG="/etc/default/getitd.cfg"
+RC="${HOME}/.getitrc"
+PIDS_FILE="/tmp/getit.pids"
+LOG_FILES_PREFIX="/tmp/getit.log"
+
+# default configs
+DOWNLOAD_DIR="${HOME}/downloads"
+PARTIAL_DOWNLOAD_DIR="${DOWNLOAD_DIR}/.partial/"
+QUEUE="${DOWNLOAD_DIR}/queue.txt"
+COMPLETED="${DOWNLOAD_DIR}/completed.txt"
+LIMIT_RATE=0
+TRIES=20
+WAIT_RETRY=30
+CONCURRENT_DOWNLOADS=15
+
+LOG_FILE="${DOWNLOAD_DIR}/getit.log"
+LOG_LEVEL=$LOG_NONE
+
+# Read config file if it is present
+[ -r $CONFIG ] && . $CONFIG
+
+# Read getitrc file if it is present
+[ -r $RC ] && . $RC
+
+function create_download_directory()
+{
+    log "start/restart download..." $LOG_DEBUG
+    # create partial download directory if it is not exists
+    if [ ! -d ${PARTIAL_DOWNLOAD_DIR} ]
+    then
+        mkdir --parents $PARTIAL_DOWNLOAD_DIR
+
+        # it seems this first attempt to run so create queue file too
+        if [ ! -e ${QUEUE} ]
+        then
+            touch ${QUEUE}
+        fi
+    fi
+}
+
+function terminate()
+{
+    if [ -f $PIDS_FILE ]
+    then
+
+        cat $PIDS_FILE | while read row;
+        do
+            pid=`echo $row | awk '{ print $1 }'`
+            if [ "$pid" ]
+            then
+                kill $pid 2>/dev/null
+                log "killed '${pid}' process. return value of kill is '$?'" $LOG_DEBUG
+            fi
+        done
+    fi
+
+    kill $inotify_pid
+
+    # remove log files and pids file
+    rm -rf $PIDS_FILE
+    rm -rf $LOG_FILES_PREFIX.*
+
+    # remove all empty directories from partial download dir
+    remove_empty_directories $PARTIAL_DOWNLOAD_DIR
+
+    log "terminated getitd" $LOG_DEBUG
+
+    exit
+}
+
+get_fingerprint()
+{
+    echo `cat $QUEUE | head --lines=$CONCURRENT_DOWNLOADS | md5sum | awk '{print $1}'`
+}
+
+function start_download()
+{
+    log "start/restart download..." $LOG_DEBUG
+
+    if [ -f $QUEUE ]
+    then
+
+        cat $QUEUE | head --lines=$CONCURRENT_DOWNLOADS | while read row;
+        do
+            # ignore lines that have ; or # at the beginning
+            row=`echo $row | sed --expression='s/^\s*[;#].*//'`
+
+            # extract url, download_dir limit_rate
+            url=`echo $row | awk '{print $1}'`
+            download_dir=`echo $row | awk '{print $2}'`
+            limit_rate=`echo $row | awk '{print $3}'`
+
+            # strip invalid characters from limit_rate
+            limit_rate=`echo $limit_rate | sed --expression="s/[^0-9KMG]\+//ig"`
+
+            if [ $url ]
+            then
+
+                if [ "x${download_dir}" == "x-" -o "x${download_dir}" == "x" ]
+                then
+                    download_dir=$PARTIAL_DOWNLOAD_DIR
+                else
+                    download_dir="${PARTIAL_DOWNLOAD_DIR}/${download_dir}"
+                fi
+
+                if [ ! -d $download_dir ]
+                then
+                    log "created partial download directory, '${download_dir}'" $LOG_DEBUG
+                    mkdir --parents $download_dir
+                fi
+
+                if [ "x${limit_rate}" == "x-" -o "x${limit_rate}" == "x" ]
+                then
+                    limit_rate=$LIMIT_RATE;
+                fi
+
+                # prevent starting wget when other process is downloading same url, this is happening when there are
+                # duplicated lines in queue file
+                if [ "x`ps aux | grep wget | grep --invert-match grep | awk '{ print $NF }' | grep $url`" == "x" ]
+                then
+
+                    filepath=`echo "$url" | perl -MURI -le 'chomp($url = <>); print URI->new($url)->path'`
+                    filename=`basename "${filepath}"`
+
+                    cd $download_dir
+                    hash=`echo $url | md5sum | awk '{print $1}'`
+
+                    wget --waitretry=$WAIT_RETRY --tries=$TRIES  --progress=bar:force --continue \
+                         --limit-rate=$limit_rate --output-file=$LOG_FILES_PREFIX.$hash \
+                          --output-document=$filename $url 1>/dev/null &
+                    pid=$!
+
+                    log "started wget with '${pid}' pid to download '${filename}'" $LOG_DEBUG
+
+                    # save pid somewhere so we can cleanup it later
+                    echo "${pid} ${hash} ${url} ${filename}" >> $PIDS_FILE
+
+                else
+                    log "there is a process that is downloading same url. '${url}'" $LOG_DEBUG
+                fi
+            else
+                log "url is empty, can't download it" $LOG_DEBUG
+            fi
+
+        done
+    else
+        log "queue file '${QUEUE}' does not exist" $LOG_DEBUG
+    fi
+}
+
+function clean_up()
+{
+    log "cleanupping processes..." $LOG_DEBUG
+
+    if [ -f $PIDS_FILE ]
+    then
+
+        cat $PIDS_FILE | while read row;
+        do
+            pid=`echo $row | awk '{ print $1 }'`
+            hash=`echo $row | awk '{ print $2 }'`
+            url=`echo $row | awk '{ print $3 }'`
+            filename=`echo $row | awk '{ print $4 }'`
+            is_in_queue=`cat $QUEUE | head --lines=$CONCURRENT_DOWNLOADS | grep "$url" 2>/dev/null`
+
+            if [ "x${is_in_queue}" == "x" ]
+            then
+                if [ $pid ]
+                then
+                    # its not in queue and not empty, kill it and remove log file
+                    kill $pid 2>/dev/null
+
+                    log "killed '${pid}' process. target file was ${filename}" $LOG_DEBUG
+                    log "return value of kill is '$?'" $LOG_DEBUG
+
+                    sed --in-place "/^${pid}/d" $PIDS_FILE
+
+                    # do not remove log file its usefull to determine status of teh process later
+                    # rm -rf "${LOG_FILES_PREFIX}.${hash}"
+                fi
+            else
+               log "process is already in the queue, do not kill it" $LOG_DEBUG
+            fi
+        done
+    else
+        log "PIDS_FILE does not exist" $LOG_DEBUG
+    fi
+}
+
+function is_url_in_progress()
+{
+    # $1 url, $2 lines (optional), $3 return_log (optional)
+    check_args_num $# 1
+
+    lines=10
+    [ "$2" ] && lines=$2
+
+    extension=`echo $1 | md5sum | awk '{print $1}'`
+    progress=`cat /tmp/getit.log.${extension} 2>/dev/null | sed --expression="s/\r/\n/g" | \
+              tail --quiet --lines=${lines} | grep --regexp="[0-9]\+%" | tail --quiet --lines=1`
+
+    if [ "$3" ]
+    then
+        progress=`cat /tmp/getit.log.${extension} 2>/dev/null | sed --expression="s/\r/\n/g" | \
+                  tail --quiet --lines=${lines}`       
+    fi
+
+    # we need to display white spaces so use double quote around it
+    echo "${progress}"
+}
+
+function is_fully_retrieved()
+{
+    # $1 url
+    check_args_num $# 1
+
+    extension=`echo $1 | md5sum | awk '{print $1}'`
+    fully_retrieved=`grep "fully retrieved;" /tmp/getit.log.${extension} 2>/dev/null`
+
+    if [ "x${fully_retrieved}" == "x" ]
+    then
+        length=`grep -e "^Length: " /tmp/getit.log.${extension} 2>/dev/null | awk '{ print $2}'`
+        fully_retrieved=`grep -e "saved \[${length}\/${length}\]" /tmp/getit.log.${extension} 2>/dev/null`
+    fi
+
+    echo $fully_retrieved
+}
+
+function status() {
+
+    running=`ps -A | grep getitd`
+    echo
+
+    if [ "$running" ]
+    then
+        if [ -f $QUEUE ]
+        then
+
+            in_progress_count=$CONCURRENT_DOWNLOADS
+            total_urls=`wc -l ${QUEUE} | awk '{ print $1}'`
+            total_completed_urls=`wc -l ${COMPLETED} 2>/dev/null | awk '{ print $1}'`
+
+            if [ "$total_urls" -lt "$in_progress_count" ]
+            then
+                in_progress_count=$total_urls
+            fi
+
+            running=`grep --regexp="^\s*[^;#]" $QUEUE 2>/dev/null`
+            if [ "$running" ]
+            then
+                printf " Downloading %d URLs from %d URLs and completed %d URLs until now." $in_progress_count $total_urls $total_completed_urls
+                echo
+                echo
+            else
+                echo " Stopped!, use \"getitctl start\" to start it again."
+                echo
+            fi
+
+            cat $QUEUE | head --lines=$CONCURRENT_DOWNLOADS | while read row;
+            do
+                # ignore lines that have ; or # at the beginning
+                row=`echo $row | sed --expression='s/^\s*[;#].*//'`
+
+                # extract url
+                url=`echo $row | awk '{print $1}'`
+
+                if [ $url ]
+                then
+
+                    progress=`is_url_in_progress "$url"`
+
+                    if [ "$progress" ]
+                    then
+
+                        extension=`echo $url | md5sum | awk '{print $1}'`
+                        length=`grep -e "^Length: " /tmp/getit.log.${extension} 2>/dev/null | sed -e "s/,[^[]\+/ /"`
+
+                        echo " $url"
+                        echo "   $length"
+                        echo "   $progress"
+                        echo
+                    else
+                        fully_retrieved=`is_fully_retrieved "${url}"`
+
+                        if [ "x$fully_retrieved" == "x" ]
+                        then
+                            echo " $url"
+                            echo "   Processing... hang on a second!, if this is a permanent error message, recheck the url or limit rate format."
+                            echo
+                        else
+                            echo " $url"
+                            echo "   100%  Nothing to do."
+                            echo
+                        fi
+                    fi
+                fi
+            done
+        else
+            echo " Nothing to do!"
+            echo
+        fi
+    else
+        echo " Daemon is not running!, start the daemon first."
+        echo
+    fi
+}
+
+function cleanup_queue()
+{
+
+    log "cleanupping queue..." $LOG_DEBUG
+
+    if [ -f $QUEUE ]
+    then
+
+        # use temp file, we don't want to disturb inotifywait yet
+        TMP_QUEUE="/tmp/getit.queue.txt"
+        hash=`md5sum ${QUEUE} | awk '{print $1}'`
+        cp $QUEUE $TMP_QUEUE
+
+        cat $QUEUE | head --lines=$CONCURRENT_DOWNLOADS | while read row;
+        do
+            # ignore lines that have ; or # at the beginning
+            row=`echo $row | sed --expression='s/^\s*[;#].*//'`
+
+            # extract url, download_dir
+            url=`echo $row | awk '{print $1}'`
+            download_dir=`echo $row | awk '{print $2}'`
+            partial_download_dir="${PARTIAL_DOWNLOAD_DIR}/`echo $row | awk '{print $2}'`"
+
+            if [ $url ]
+            then
+
+                if [ "x${download_dir}" == "x-" -o "x${download_dir}" == "x" ]
+                then
+                    download_dir=$DOWNLOAD_DIR
+                else
+                    download_dir="${DOWNLOAD_DIR}/${download_dir}"
+                fi
+
+                if [ ! -d $download_dir ]
+                then
+                    log "created download directory, '${download_dir}'" $LOG_DEBUG
+                    mkdir --parents $download_dir
+                fi
+
+                fully_retrieved=`is_fully_retrieved "${url}"`
+
+                if [ "x$fully_retrieved" != "x" ]
+                then
+
+
+                    already_there=`grep "$url" $COMPLETED 2>/dev/null`
+                    if [ "x$already_there" == "x" ]
+                    then
+                        echo $row >> $COMPLETED
+                        log "added informations to completed file" $LOG_DEBUG 
+                    fi
+
+                    # escape slashes
+                    url=`echo "$url" | sed "s,/,\\\\\\\\\\/,g"`
+                    sed --in-place "/^\s*${url}/d" $TMP_QUEUE
+
+                    # find file name then move it to its download_dir, first of all we have to find pid
+                    filename=`cat ${PIDS_FILE} | grep "${url}" | awk '{print $4}'`
+                    mv "${partial_download_dir}/${filename}" $download_dir
+
+                    log "'${filename}' is fully retrieved" $LOG_DEBUG 
+                    log "removed url from temp queue" $LOG_DEBUG 
+                    log "moved file from partial directory to its directory" $LOG_DEBUG 
+
+                else
+
+                    progress=`is_url_in_progress "$url" 1`
+
+                    if [ "x$progress" == "x" ]
+                    then
+                        # there is a problem in url
+                        # move it at the end of queue. so we can download other files
+                        url=`echo "$url" | sed "s,/,\\\\\\\\\\/,g"`
+                        sed --in-place "/^\s*${url}/d" $TMP_QUEUE
+                        echo "$row" >> $TMP_QUEUE
+
+                        progress=`is_url_in_progress "$url" 10 1`
+
+                        log "there is a problem with url, so move it at the end of the queue (meanwhile the temp queue)" $LOG_DEBUG 
+                        log "${progress}" $LOG_DEBUG
+
+                    fi
+                fi
+            fi
+        done
+
+        new_hash=`md5sum ${QUEUE} | awk '{print $1}'`
+        tmp_hash=`md5sum ${TMP_QUEUE} | awk '{print $1}'`
+
+        if [ $new_hash == $hash ]
+        then
+            if [ $tmp_hash != $hash ]
+            then
+               log "there are new changes in temp queue, replace queue with temp queue" $LOG_DEBUG 
+               mv $TMP_QUEUE $QUEUE
+            fi
+        else
+            # queue file has been changed do the process again
+            log "there are new changes in queue file recall cleanup_queue and ignore current temp queue" $LOG_DEBUG 
+            cleanup_queue
+        fi
+
+        rm -f $TMP_QUEUE
+    fi
+}

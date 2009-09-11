@@ -4,163 +4,66 @@
 # Getit, simplified, yet powerful download manager
 #
 #   Author: Armen Baghumian <armen@OpenSourceClub.org>
-#   Version: 0.1
 #   License: There is no license, then you are free to do WHAT EVER YOU WANT with
 #            this script
 #
 
-CONFIG="${HOME}/.getitrc"
-PIDS_FILE="/tmp/getit.pids"
-LOG_FILES_PREFIX="/tmp/getit.log"
+. getit-core
 
-# default configs
-DOWNLOAD_DIR="${HOME}/downloads"
-PARTIAL_DOWNLOAD_DIR="${DOWNLOAD_DIR}/.partial/"
-QUEUE="${DOWNLOAD_DIR}/queue.txt"
-COMPLETED="${DOWNLOAD_DIR}/completed.txt"
-LIMIT_RATE=0
-TRIES=20
-WAIT_RETRY=30
-CONCURRENT_DOWNLOADS=15
-
-# read getitrc file if it is present
-[ -r $CONFIG ] && . $CONFIG
-
-# create partial download directory if it is not exists
-if [ "x`ls ${PARTIAL_DOWNLOAD_DIR} 2>/dev/null`" == "x" ] ; then
-    mkdir --parents $PARTIAL_DOWNLOAD_DIR
-
-    # it seems this first attempt to run so create queue file too
-    if [ "x`ls ${QUEUE} 2>/dev/null`" == "x" ] ; then
-        touch ${QUEUE}
-    fi
-fi
-
-function start_download {
-
-    if [ -f $QUEUE ] ; then
-
-        cat $QUEUE | head --lines=$CONCURRENT_DOWNLOADS | while read row;
-        do
-            # ignore lines that have ; or # at the beginning
-            row=`echo $row | sed --expression='s/^\s*[;#].*//'`
-
-            # extract url, download_dir limit_rate
-            url=`echo $row | awk '{print $1}'`
-            download_dir="${PARTIAL_DOWNLOAD_DIR}/`echo $row | awk '{print $2}'`"
-            limit_rate=`echo $row | awk '{print $3}'`
-
-            # strip invalid characters from limit_rate
-            limit_rate=`echo $limit_rate | sed --expression="s/[^0-9KMG]\+//ig"`
-
-            if [ $url ] ; then
-
-                if [ "x`ls ${download_dir} 2>/dev/null`" == "x" ] ; then
-                    mkdir --parents $download_dir
-                fi                
-
-                if [ "x${limit_rate}" == "x-" -o "x${limit_rate}" == "x" ] ; then
-                    limit_rate=$LIMIT_RATE;
-                fi
-
-                # prevent starting wget when other process is downloading same url, this is happening when there are
-                # duplicated lines in queue file
-                if [ "x`ps aux | grep wget | grep --invert-match grep | awk '{ print $NF }' | grep $url`" == "x" ] ; then
-
-                    filepath=`echo "$url" | perl -MURI -le 'chomp($url = <>); print URI->new($url)->path'`
-                    filename=`basename "${filepath}"`
-
-                    cd $download_dir
-                    hash=`echo $url | md5sum | awk '{print $1}'`
-                    wget --waitretry=$WAIT_RETRY --tries=$TRIES  --progress=bar:force --continue \
-                         --limit-rate=$limit_rate --output-file=$LOG_FILES_PREFIX.$hash \
-                          --output-document=$filename $url 1>/dev/null &
-                    pid=$!
-
-                    # save pid somewhere so we can cleanup it later
-                    echo "${pid} ${hash} ${url} ${filename}" >> $PIDS_FILE
-                fi
-            fi
-
-        done
-    fi
-}
-
-function clean_up {
-
-    if [ -f $PIDS_FILE ] ; then
-
-        cat $PIDS_FILE | while read row;
-        do
-            pid=`echo $row | awk '{ print $1 }'`
-            hash=`echo $row | awk '{ print $2 }'`
-            url=`echo $row | awk '{ print $3 }'`
-            is_in_queue=`cat $QUEUE | head --lines=$CONCURRENT_DOWNLOADS | grep "$url" 2>/dev/null`
-
-            if [ "x${is_in_queue}" == "x" ] ; then
-                if [ $pid ] ; then
-                    # its not in queue and not empty, kill it and remove log file
-                    kill $pid 2>/dev/null
-                    sed --in-place "/^${pid}/d" $PIDS_FILE
-                    rm -rf "${LOG_FILES_PREFIX}.${hash}"
-                fi
-            fi
-        done
-    fi
-}
-
-function terminate {
-
-    if [ -f $PIDS_FILE ] ; then
-
-        cat $PIDS_FILE | while read row;
-        do
-            pid=`echo $row | awk '{ print $1 }'`
-            if [ $pid ] ; then
-                kill $pid 2>/dev/null
-            fi
-        done
-    fi
-
-    kill $inotify_pid
-
-    # remove log files and pids file
-    rm -rf $PIDS_FILE
-    rm -rf $LOG_FILES_PREFIX.*
-
-    # remove all empty directories from partial download dir
-    find $PARTIAL_DOWNLOAD_DIR -depth -type d -empty -exec rmdir {} \;
-
-    exit
-}
+log "started getitd..." $LOG_DEBUG
 
 # Do the cleanup when one of SIGHUP, SIGINT, SIGTERM signals is received
 trap terminate SIGHUP SIGINT SIGTERM
 
+create_download_directory
+
+# its first time, get the fingerprint
+fingerprint=`get_fingerprint`
+
 while (true);
 do
+
+    # save fingerprint
+    fingerprint=`get_fingerprint`
+
     # 2 indicates timeout
-    if [ "$inotify_ret" != "2" ] ; then
-        if [ "$fingerprint" != "$new_fingerprint" ] ; then
+    if [ "$inotify_ret" != "2" ]
+    then
+        if [ "$old_fingerprint" != "$fingerprint" ]
+        then
             # finger print has been changed, do the work
+            if [ ! -z $old_fingerprint ]
+            then
+                log "finger print changed from '${old_fingerprint}' to '${fingerprint}'" $LOG_DEBUG
+            fi
             clean_up
             start_download
         fi
     else
-        # run cleanup-queue in the background and quickly watch queue file again
+        # run cleanup-queue in background and quickly watch queue file again
+        log "run cleanup-queue in background and quickly watch queue file again" $LOG_DEBUG
         getitctl cleanup-queue &
     fi
 
-    # save fingerprint
-    fingerprint=`cat $QUEUE | head --lines=$CONCURRENT_DOWNLOADS | md5sum | awk '{print $1}'`
+    log "watching the queue for any change" $LOG_DEBUG
 
     # watch queue file
     inotifywait --quiet --timeout=30 --event MOVE_SELF --event MODIFY $QUEUE 1>/dev/null &
     inotify_pid=$!      # catch its pid so we can cleanup it later when a SIGNAL received
+
+    log "go to sleep and wait for inotifywait" $LOG_DEBUG
+   
     wait $inotify_pid   # wait for it
     inotify_ret=$?      # an then catch the return value, 2 indicates timeout
 
-    # get new fingerprint, sleep fo 1 second so file will be available for reading
+    if [ "$inotify_ret" == "2" ]
+    then
+        log "inotifywait has been quit because of timeout" $LOG_DEBUG
+    else
+        log "there is a change in queue file get new fingerprint of the queue" $LOG_DEBUG
+    fi
+
+    # to get new fingerprint we have to sleep for 1 second so file will be available for reading
     sleep 1
-    new_fingerprint=`cat $QUEUE | head --lines=$CONCURRENT_DOWNLOADS | md5sum | awk '{print $1}'`
+    old_fingerprint=$fingerprint
 done
