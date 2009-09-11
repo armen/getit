@@ -137,6 +137,7 @@ function start_download()
 
                     cd $download_dir
                     hash=`echo $url | md5sum | awk '{print $1}'`
+                    fingerprint=`echo "$row" | md5sum | awk '{print $1}'`
 
                     wget --waitretry=$WAIT_RETRY --tries=$TRIES  --progress=bar:force --continue \
                          --limit-rate=$limit_rate --output-file=$LOG_FILES_PREFIX.$hash \
@@ -146,7 +147,7 @@ function start_download()
                     log "started wget with '${pid}' pid to download '${filename}'" $LOG_DEBUG
 
                     # save pid somewhere so we can cleanup it later
-                    echo "${pid} ${hash} ${url} ${filename}" >> $PIDS_FILE
+                    echo "${pid} ${hash} ${url} ${filename} ${fingerprint}" >> $PIDS_FILE
 
                 else
                     log "there is a process that is downloading same url. '${url}'" $LOG_DEBUG
@@ -171,12 +172,13 @@ function clean_up()
         cat $PIDS_FILE | while read row;
         do
             pid=`echo $row | awk '{ print $1 }'`
-            hash=`echo $row | awk '{ print $2 }'`
             url=`echo $row | awk '{ print $3 }'`
             filename=`echo $row | awk '{ print $4 }'`
+            fingerprint=`echo $row | awk '{ print $5 }'`
             is_in_queue=`cat $QUEUE | head --lines=$CONCURRENT_DOWNLOADS | grep "$url" 2>/dev/null`
+            new_fingerprint=`echo "$is_in_queue" | md5sum | awk '{print $1}'`
 
-            if [ "x${is_in_queue}" == "x" ]
+            if [ "${fingerprint}" != "${new_fingerprint}" ]
             then
                 if [ $pid ]
                 then
@@ -192,7 +194,7 @@ function clean_up()
                     # rm -rf "${LOG_FILES_PREFIX}.${hash}"
                 fi
             else
-               log "process is already in the queue, do not kill it" $LOG_DEBUG
+               log "process is already in the queue without any change, do not kill it" $LOG_DEBUG
             fi
         done
     else
