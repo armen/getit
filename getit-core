@@ -21,6 +21,7 @@ DOWNLOAD_DIR="${HOME}/downloads"
 PARTIAL_DOWNLOAD_DIR="${DOWNLOAD_DIR}/.partial/"
 QUEUE="${DOWNLOAD_DIR}/queue.txt"
 COMPLETED="${DOWNLOAD_DIR}/completed.txt"
+HTTP_ERRORS="${DOWNLOAD_DIR}/http_errors.txt"
 LIMIT_RATE=0
 TRIES=20
 WAIT_RETRY=30
@@ -217,7 +218,7 @@ function is_url_in_progress()
     if [ "$3" ]
     then
         progress=`cat /tmp/getit.log.${extension} 2>/dev/null | sed --expression="s/\r/\n/g" | \
-                  tail --quiet --lines=${lines}`       
+                  tail --quiet --lines=${lines}`
     fi
 
     # we need to display white spaces so use double quote around it
@@ -241,6 +242,17 @@ function is_fully_retrieved()
     echo $fully_retrieved
 }
 
+function has_http_error()
+{
+    # $1 url
+    check_args_num $# 1
+
+    extension=`echo $1 | md5sum | awk '{print $1}'`
+    has_http_error=`grep -e "ERROR [0-9]\+:" /tmp/getit.log.${extension} 2>/dev/null | sed -e "s/^.*ERROR \([0-9]\+\): \([^.]\+\)\./\1 \2/"`
+
+    echo $has_http_error
+}
+
 function status() {
 
     running=`ps -A | grep getitd`
@@ -254,6 +266,7 @@ function status() {
             in_progress_count=$CONCURRENT_DOWNLOADS
             total_urls=`wc -l ${QUEUE} | awk '{ print $1}'`
             total_completed_urls=`wc -l ${COMPLETED} 2>/dev/null | awk '{ print $1}'`
+            total_http_errors=`wc -l ${HTTP_ERRORS} 2>/dev/null | awk '{ print $1}'`
 
             if [ "$total_urls" -lt "$in_progress_count" ]
             then
@@ -263,9 +276,16 @@ function status() {
             running=`grep --regexp="^\s*[^;#]" $QUEUE 2>/dev/null`
             if [ "$running" ]
             then
-                printf " Downloading %d URLs from %d URLs and completed %d URLs until now." $in_progress_count $total_urls $total_completed_urls
-                echo
-                echo
+                if [ "x${total_http_errors}" == "x" ]
+                then
+                    printf " Downloading %d URLs from %d URLs and completed %d URLs until now" $in_progress_count $total_urls $total_completed_urls
+                    echo
+                    echo
+                else
+                    printf " Downloading %d URLs from %d URLs and completed %d URLs until now, there was %d HTTP errors" $in_progress_count $total_urls $total_completed_urls $total_http_errors
+                    echo
+                    echo
+                fi
             else
                 echo " Stopped!, use \"getitctl start\" to start it again."
                 echo
@@ -299,9 +319,17 @@ function status() {
 
                         if [ "x$fully_retrieved" == "x" ]
                         then
-                            echo " $url"
-                            echo "   Processing... hang on a second!, if this is a permanent error message, recheck the url or limit rate format."
-                            echo
+                            has_http_error=`has_http_error "${url}"`
+                            if [ "x$has_http_error" == "x" ]
+                            then
+                                echo " $url"
+                                echo "   Processing... hang on a second!, if this is a permanent error message, recheck the url or limit rate format."
+                                echo
+                            else
+                                echo " $url"
+                                echo "   $has_http_error"
+                                echo
+                            fi
                         else
                             echo " $url"
                             echo "   100%  Nothing to do."
@@ -364,12 +392,11 @@ function cleanup_queue()
                 if [ "x$fully_retrieved" != "x" ]
                 then
 
-
                     already_there=`grep "$url" $COMPLETED 2>/dev/null`
                     if [ "x$already_there" == "x" ]
                     then
                         echo $row >> $COMPLETED
-                        log "added informations to completed file" $LOG_DEBUG 
+                        log "added informations to completed file" $LOG_DEBUG
                     fi
 
                     # escape slashes
@@ -380,9 +407,9 @@ function cleanup_queue()
                     filename=`cat ${PIDS_FILE} | grep "${url}" | awk '{print $4}'`
                     mv "${partial_download_dir}/${filename}" $download_dir
 
-                    log "'${filename}' is fully retrieved" $LOG_DEBUG 
-                    log "removed url from temp queue" $LOG_DEBUG 
-                    log "moved file from partial directory to its directory" $LOG_DEBUG 
+                    log "'${filename}' is fully retrieved" $LOG_DEBUG
+                    log "removed url from temp queue" $LOG_DEBUG
+                    log "moved file from partial directory to its directory" $LOG_DEBUG
 
                 else
 
@@ -390,17 +417,30 @@ function cleanup_queue()
 
                     if [ "x$progress" == "x" ]
                     then
-                        # there is a problem in url
-                        # move it at the end of queue. so we can download other files
-                        url=`echo "$url" | sed "s,/,\\\\\\\\\\/,g"`
-                        sed --in-place "/^\s*${url}/d" $TMP_QUEUE
-                        echo "$row" >> $TMP_QUEUE
 
-                        progress=`is_url_in_progress "$url" 10 1`
+                        has_http_error=`has_http_error "${url}"`
+                        if [ "x$has_http_error" == "x" ]
+                        then
+                            # there is a problem in url
+                            # move it at the end of queue. so we can download other files
+                            url=`echo "$url" | sed "s,/,\\\\\\\\\\/,g"`
+                            sed --in-place "/^\s*${url}/d" $TMP_QUEUE
+                            echo "$row" >> $TMP_QUEUE
 
-                        log "there is a problem with url, so move it at the end of the queue (meanwhile the temp queue)" $LOG_DEBUG 
-                        log "${progress}" $LOG_DEBUG
+                            progress=`is_url_in_progress "$url" 10 1`
 
+                            log "there is a problem with url, so move it at the end of the queue (meanwhile the temp queue)" $LOG_DEBUG
+                            log "${progress}" $LOG_DEBUG
+                        else
+                            # there is a http error!
+                            url=`echo "$url" | sed "s,/,\\\\\\\\\\/,g"`
+                            sed --in-place "/^\s*${url}/d" $TMP_QUEUE
+
+                            echo "${row} # ${has_http_error}" >> $HTTP_ERRORS
+
+                            log "there is a problem with url so I removed it from queue, it has following error" $LOG_DEBUG
+                            log "${has_http_error}" $LOG_DEBUG
+                       fi
                     fi
                 fi
             fi
@@ -413,12 +453,12 @@ function cleanup_queue()
         then
             if [ $tmp_hash != $hash ]
             then
-               log "there are new changes in temp queue, replace queue with temp queue" $LOG_DEBUG 
+               log "there are new changes in temp queue, replace queue with temp queue" $LOG_DEBUG
                mv $TMP_QUEUE $QUEUE
             fi
         else
             # queue file has been changed do the process again
-            log "there are new changes in queue file recall cleanup_queue and ignore current temp queue" $LOG_DEBUG 
+            log "there are new changes in queue file recall cleanup_queue and ignore current temp queue" $LOG_DEBUG
             cleanup_queue
         fi
 

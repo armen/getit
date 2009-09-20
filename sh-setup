@@ -30,7 +30,7 @@ log_init()
     then
         LOG_FD=3
         exec 3>> $LOG_FILE
-    else 
+    else
         # log file does not exist or is not reachable redirect everything to stderr
         LOG_FD=2
     fi

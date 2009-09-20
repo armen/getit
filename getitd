@@ -52,7 +52,7 @@ do
     inotify_pid=$!      # catch its pid so we can cleanup it later when a SIGNAL received
 
     log "go to sleep and wait for inotifywait" $LOG_DEBUG
-   
+
     wait $inotify_pid   # wait for it
     inotify_ret=$?      # an then catch the return value, 2 indicates timeout
 
