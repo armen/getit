@@ -8,6 +8,7 @@ ADD: Added logging
 ADD: Added getit-core and moved all functions fron ctl and daemon there
 ADD: central sh-setup file
 ADD: Handled http errors and moved broken URLs to http_errors.txt
+ADD: File length info in getitctl status
 FIX: Fixed fully_retrieved detection bug
 CHG: Used fingerprint for each URL
 
