@@ -1,6 +1,16 @@
 Getit CHANGELOG
 ===============
 
+0.3 (Sep 20, 2009)
+------------------
+
+ADD: Added logging
+ADD: Added getit-core and moved all functions fron ctl and daemon there
+ADD: central sh-setup file
+ADD: Handled http errors and moved broken URLs to http_errors.txt
+FIX: Fixed fully_retrieved detection bug
+CHG: Used fingerprint for each URL
+
 0.2.1 (Sep 4, 2009)
 -------------------
 
