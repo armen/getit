@@ -260,11 +260,12 @@ function status() {
 
     if [ "$running" ]
     then
-        if [ -f $QUEUE ]
+        total_urls=`wc -l ${QUEUE} | awk '{ print $1}'`
+
+        if [ -f $QUEUE ] && [ $total_urls -gt 0 ]
         then
 
             in_progress_count=$CONCURRENT_DOWNLOADS
-            total_urls=`wc -l ${QUEUE} | awk '{ print $1}'`
             total_completed_urls=`wc -l ${COMPLETED} 2>/dev/null | awk '{ print $1}'`
             total_http_errors=`wc -l ${HTTP_ERRORS} 2>/dev/null | awk '{ print $1}'`
 
@@ -339,7 +340,7 @@ function status() {
                 fi
             done
         else
-            echo " Nothing to do!"
+            echo " Queue is empty, nothing to do!"
             echo
         fi
     else
