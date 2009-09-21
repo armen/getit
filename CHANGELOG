@@ -1,11 +1,20 @@
 Getit CHANGELOG
 ===============
 
+0.4 (Sep 21, 2009)
+------------------
+
+ADD: Display brief status when queue is empty or getit is stopped
+ADD: Added destination to status
+ADD: Replaced watch with colored_watch and make status colorful
+ADD: Added "getit." prefix for queue.txt, complete.txt and http_errors.txt files
+CHG: Changed format of http_erros.txt file to be more readable
+
 0.3 (Sep 20, 2009)
 ------------------
 
 ADD: Added logging
-ADD: Added getit-core and moved all functions fron ctl and daemon there
+ADD: Added getit-core and moved all functions from ctl and daemon there
 ADD: central sh-setup file
 ADD: Handled http errors and moved broken URLs to http_errors.txt
 ADD: File length info in getitctl status
