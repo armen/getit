@@ -332,7 +332,7 @@ function status() {
                             then
                                 echo -e "      Progress: ${TXTBLD}Processing... hang on a second!, if this is a permanent error message, recheck the url or limit rate format.${TXTRST}"
                             else
-                                echo "    HTTP Error: $has_http_error"
+                                echo -e "    HTTP Error: ${TXTBLD}$has_http_error${TXTRST}"
                             fi
                         else
                             echo -e "      Progress: ${TXTBLD}100%  Nothing to do.${TXTRST}"
