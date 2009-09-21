@@ -241,7 +241,7 @@ function is_fully_retrieved()
         fully_retrieved=`grep -e "saved \[${length}\/${length}\]" /tmp/getit.log.${extension} 2>/dev/null`
     fi
 
-    echo $fully_retrieved
+    echo "$fully_retrieved"
 }
 
 function has_http_error()
@@ -252,7 +252,7 @@ function has_http_error()
     extension=`echo $1 | md5sum | awk '{print $1}'`
     has_http_error=`grep -e "ERROR [0-9]\+:" /tmp/getit.log.${extension} 2>/dev/null | sed -e "s/^.*ERROR \([0-9]\+\): \([^.]\+\)\./\1 \2/"`
 
-    echo $has_http_error
+    echo "$has_http_error"
 }
 
 function status() {
@@ -275,13 +275,13 @@ function status() {
 
         if [ "x${total_http_errors}" == "x" ]
         then
+            echo -en $TXTBLD
             printf " Gonna download %d URLs from %d URLs, downloaded %d URLs until now" $in_progress_count $total_urls $total_completed_urls
-            echo
-            echo
+            echo -e $TXTRST
         else
+            echo -en $TXTBLD
             printf " Gonna download %d URLs from %d URLs, downloaded %d URLs until now and there was %d HTTP errors" $in_progress_count $total_urls $total_completed_urls $total_http_errors
-            echo
-            echo
+            echo -e $TXTRST
         fi
 
         if [ -f $QUEUE ] && [ $total_urls -gt 0 ]
@@ -290,8 +290,8 @@ function status() {
             running=`grep --regexp="^\s*[^;#]" $QUEUE 2>/dev/null`
             if [ ! "$running" ]
             then
-                echo " Stopped!, use \"getitctl start\" to start it again."
                 echo
+                echo -e " ${BLDRED}Stopped!, use \"getitctl start\" to start it again.${TXTRST}"
             fi
 
             cat $QUEUE | head --lines=$CONCURRENT_DOWNLOADS | while read row;
@@ -305,7 +305,13 @@ function status() {
                 if [ $url ]
                 then
 
+                    download_dir=`echo $row | awk '{print $2}'`
+                    filename=`cat ${PIDS_FILE} | grep "${url}" | awk '{print $4}'`
                     progress=`is_url_in_progress "$url"`
+
+                    echo  
+                    echo -e "           URL: ${BLDRED}${url}${TXTRST}"
+                    echo    "   Destination: ${download_dir}/${filename}"
 
                     if [ "$progress" ]
                     then
@@ -313,10 +319,9 @@ function status() {
                         extension=`echo $url | md5sum | awk '{print $1}'`
                         length=`grep -e "^Length: " /tmp/getit.log.${extension} 2>/dev/null | sed -e "s/,[^[]\+/ /"`
 
-                        echo " $url"
-                        echo "   $length"
-                        echo "   $progress"
-                        echo
+                        echo    "        $length"
+                        echo -e "      Progress: ${TXTBLD}${progress}${TXTRST}"
+
                     else
                         fully_retrieved=`is_fully_retrieved "${url}"`
 
@@ -325,29 +330,22 @@ function status() {
                             has_http_error=`has_http_error "${url}"`
                             if [ "x$has_http_error" == "x" ]
                             then
-                                echo " $url"
-                                echo "   Processing... hang on a second!, if this is a permanent error message, recheck the url or limit rate format."
-                                echo
+                                echo -e "      Progress: ${TXTBLD}Processing... hang on a second!, if this is a permanent error message, recheck the url or limit rate format.${TXTRST}"
                             else
-                                echo " $url"
-                                echo "   $has_http_error"
-                                echo
+                                echo "    HTTP Error: $has_http_error"
                             fi
                         else
-                            echo " $url"
-                            echo "   100%  Nothing to do."
-                            echo
+                            echo -e "      Progress: ${TXTBLD}100%  Nothing to do.${TXTRST}"
                         fi
                     fi
                 fi
             done
         else
-            echo " Queue is empty, nothing to do!"
             echo
+            echo -e " ${BLDRED}Queue is empty, nothing to do!${TXTRST}"
         fi
     else
-        echo " Daemon is not running!, start the daemon first."
-        echo
+        echo -e " ${BLDRED}Daemon is not running!, start the daemon first.${TXTRST}"
     fi
 }
 
