@@ -11,6 +11,8 @@
 
 . sh-setup
 
+VERSION="0.3"
+
 CONFIG="/etc/default/getitd.cfg"
 RC="${HOME}/.getitrc"
 PIDS_FILE="/tmp/getit.pids"
