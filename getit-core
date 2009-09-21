@@ -21,9 +21,9 @@ LOG_FILES_PREFIX="/tmp/getit.log"
 # default configs
 DOWNLOAD_DIR="${HOME}/downloads"
 PARTIAL_DOWNLOAD_DIR="${DOWNLOAD_DIR}/.partial/"
-QUEUE="${DOWNLOAD_DIR}/queue.txt"
-COMPLETED="${DOWNLOAD_DIR}/completed.txt"
-HTTP_ERRORS="${DOWNLOAD_DIR}/http_errors.txt"
+QUEUE="${DOWNLOAD_DIR}/getit.queue.txt"
+COMPLETED="${DOWNLOAD_DIR}/getit.completed.txt"
+HTTP_ERRORS="${DOWNLOAD_DIR}/getit.http_errors.txt"
 LIMIT_RATE=0
 TRIES=20
 WAIT_RETRY=30

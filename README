@@ -6,7 +6,7 @@ any URL that get pasted in queue file.
 Queue file is a simple text file that accepts not only URLs
 but also download subdirectory and download rate.
 Getit monitors the queue file and detects any changes that
-made in queue file, and determine if its necessary to 
+made in queue file, and determine if its necessary to
 terminate any download that is in progress or not, so it
 ignores any changes that is not related to in progress
 downloads.
