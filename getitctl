@@ -45,7 +45,7 @@ case "$1" in
     ;;
     watch-status|ws)
 
-        watch --interval=1 --no-title "getitctl status"
+        colored_watch "getitctl status"
     ;;
     cleanup-queue)
 
