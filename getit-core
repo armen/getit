@@ -266,7 +266,7 @@ function status() {
         total_urls=`wc -l ${QUEUE} | awk '{ print $1}'`
         in_progress_count=$CONCURRENT_DOWNLOADS
         total_completed_urls=`wc -l ${COMPLETED} 2>/dev/null | awk '{ print $1}'`
-        total_http_errors=`wc -l ${HTTP_ERRORS} 2>/dev/null | awk '{ print $1}'`
+        total_http_errors=`cat ${HTTP_ERRORS} 2>/dev/null | grep -v -e "^##" | wc -l | awk '{ print $1 }'`
 
         if [ "$total_urls" -lt "$in_progress_count" ]
         then
@@ -309,7 +309,7 @@ function status() {
                     filename=`cat ${PIDS_FILE} | grep "${url}" | awk '{print $4}'`
                     progress=`is_url_in_progress "$url"`
 
-                    echo  
+                    echo
                     echo -e "           URL: ${BLDRED}${url}${TXTRST}"
                     echo    "   Destination: ${download_dir}/${filename}"
 
@@ -437,7 +437,15 @@ function cleanup_queue()
                             url=`echo "$url" | sed "s,/,\\\\\\\\\\/,g"`
                             sed --in-place "/^\s*${url}/d" $TMP_QUEUE
 
-                            echo "${row} # ${has_http_error}" >> $HTTP_ERRORS
+                            has_header=`grep -e "$has_http_error" $HTTP_ERRORS`
+
+                            if [ "$has_header" ]
+                            then
+                                row=`echo "$row" | sed "s,/,\\\\\\\\\\/,g"`
+                                sed --in-place "s/^## ${has_http_error}/&\n${row}/" $HTTP_ERRORS
+                            else
+                                echo -e "## ${has_http_error}\n${row}" >> $HTTP_ERRORS
+                            fi
 
                             log "there is a problem with url so I removed it from queue, it has following error" $LOG_DEBUG
                             log "${has_http_error}" $LOG_DEBUG
